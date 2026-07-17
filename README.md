@@ -34,20 +34,34 @@ are reachable only over the private Docker network.
 - A real domain with DNS A-records `api` / `app` / `admin` pointing to the host IP
 - Ports 80 and 443 open
 
-## Local development (no orchestration)
+## Local development
 
-Each app runs standalone against the others on `localhost` — no Docker required:
+Two ways to run the stack locally — pick one.
+
+**A. Standalone (no Docker).** Each app runs independently on `localhost`:
 
 ```bash
 # terminal 1
-cd dev-vault-server && npm run start:dev   # http://localhost:3030
+cd dev-vault-server && npm run start:dev    # http://localhost:3030
 # terminal 2
 cd dev-vault-client && npm run dev          # http://localhost:3000
 # terminal 3
 cd dev-vault-admin  && npm run dev          # http://localhost:3001
 ```
 
-The frontends read `VITE_API_URL=http://localhost:3030` from their local `.env`.
+**B. One command (Docker).** Bring up all three apps + Postgres + Redis together:
+
+```bash
+cd dev-vault-infra
+docker compose -f compose.dev.yml up
+```
+
+`compose.dev.yml` just includes each app's own `docker-compose.yml` (dev stage,
+hot-reload, direct ports). The frontends read `VITE_API_URL=http://localhost:3030`
+from their local `.env`.
+
+> Dev and prod are deliberately separate files: `compose.dev.yml` for local work,
+> `compose.prod.yml` for the server. Never run them together.
 
 ## Production deploy (single host, e.g. Hetzner)
 

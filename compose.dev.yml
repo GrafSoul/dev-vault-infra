@@ -1,0 +1,10 @@
+# Local development stack: brings up all three apps + Postgres + Redis with one
+# command. Reuses each app's own docker-compose.yml — no duplicated config here.
+# Expects the app repos cloned side by side next to this one. Run from here:
+#   docker compose -f compose.dev.yml up
+#
+# The apps also run standalone without Docker (npm run dev / start:dev) — see README.
+include:
+  - ../dev-vault-server/docker-compose.yml
+  - ../dev-vault-client/docker-compose.yml
+  - ../dev-vault-admin/docker-compose.yml
