@@ -1,13 +1,26 @@
 # dev-vault-infra
 
-Production deployment for the **dev-vault** stack: three independently developed
-apps served on their own subdomains behind a single reverse proxy.
+Production orchestration for **dev-vault**: three independently developed apps
+served on their own subdomains behind a single Caddy reverse proxy.
 
-```
+## The dev-vault project
+
+**dev-vault** is split into four repositories, developed and deployed independently:
+
+| Repository                                                       | Role                                       | Local dev               |
+| ---------------------------------------------------------------- | ------------------------------------------ | ----------------------- |
+| [dev-vault-server](https://github.com/GrafSoul/dev-vault-server) | Backend API (NestJS)                       | `http://localhost:3030` |
+| [dev-vault-client](https://github.com/GrafSoul/dev-vault-client) | Client SPA (React + Vite)                  | `http://localhost:3000` |
+| [dev-vault-admin](https://github.com/GrafSoul/dev-vault-admin)   | Admin SPA (React + Vite)                   | `http://localhost:3001` |
+| [dev-vault-infra](https://github.com/GrafSoul/dev-vault-infra)   | Production orchestration (Compose + Caddy) | —                       |
+
+## Architecture
+
+```text
 Browser ──HTTPS──▶ Caddy (443, auto-TLS)
                      api.YOUR_DOMAIN    → backend  (NestJS, :3030)
                      app.YOUR_DOMAIN    → client   (static via nginx, :80)
-                     admin.YOUR_DOMAIN  → admin     (static via nginx, :80)
+                     admin.YOUR_DOMAIN  → admin    (static via nginx, :80)
 
 backend ──private──▶ postgres (:5432) · redis (:6379)   # not exposed to the internet
 ```
@@ -15,16 +28,11 @@ backend ──private──▶ postgres (:5432) · redis (:6379)   # not exposed
 Only Caddy publishes ports (80/443). Postgres and Redis have no public ports and
 are reachable only over the private Docker network.
 
-## Repositories
+## Prerequisites
 
-Each app lives in its own repo and is developed and run independently. This repo
-only orchestrates them for production.
-
-| Repo                                                             | Role                    | Dev port |
-| ---------------------------------------------------------------- | ----------------------- | -------- |
-| [dev-vault-server](https://github.com/GrafSoul/dev-vault-server) | Backend API (NestJS)    | 3030     |
-| [dev-vault-client](https://github.com/GrafSoul/dev-vault-client) | Client SPA (React/Vite) | 3000     |
-| [dev-vault-admin](https://github.com/GrafSoul/dev-vault-admin)   | Admin SPA (React/Vite)  | 3001     |
+- A host with [Docker](https://docs.docker.com/get-docker/) + Docker Compose
+- A real domain with DNS A-records `api` / `app` / `admin` pointing to the host IP
+- Ports 80 and 443 open
 
 ## Local development (no orchestration)
 
@@ -43,9 +51,6 @@ The frontends read `VITE_API_URL=http://localhost:3030` from their local `.env`.
 
 ## Production deploy (single host, e.g. Hetzner)
 
-Prerequisites: Docker + Docker Compose on the host, a real domain, and DNS
-A-records `api` / `app` / `admin` pointing to the server IP. Ports 80 and 443 open.
-
 ```bash
 # clone the four repos side by side
 git clone https://github.com/GrafSoul/dev-vault-server.git
@@ -62,6 +67,15 @@ docker compose -f compose.prod.yml up -d --build
 Caddy fetches TLS certificates from Let's Encrypt automatically once the
 subdomains resolve to the host.
 
+## Environment variables
+
+Defined in `.env` (see `.env.example` for the template):
+
+| Variable            | Description                                                | Example       |
+| ------------------- | ---------------------------------------------------------- | ------------- |
+| `DOMAIN`            | Base domain; subdomains `api`/`app`/`admin` derive from it | `YOUR_DOMAIN` |
+| `POSTGRES_PASSWORD` | Password for the private PostgreSQL instance               | —             |
+
 ### Where config lives
 
 - **API URL** of each frontend is baked into its bundle at build time via the
@@ -75,3 +89,7 @@ subdomains resolve to the host.
 - Push images to a registry (GHCR) and pull instead of building on the host.
 - Add CI to build and publish images per repo on merge to `main`.
 - Move Postgres to a managed database or add automated backups.
+
+## License
+
+Private project — not for distribution.
