@@ -1,0 +1,16 @@
+# Reverse proxy for the dev-vault stack.
+# {$DOMAIN} is read from the caddy container environment (set in compose.prod.yml).
+# Caddy obtains and renews TLS certificates from Let's Encrypt automatically,
+# as long as the subdomains resolve (DNS A-records) to this host and 80/443 are open.
+
+api.{$DOMAIN} {
+	reverse_proxy backend:3030
+}
+
+app.{$DOMAIN} {
+	reverse_proxy client:80
+}
+
+admin.{$DOMAIN} {
+	reverse_proxy admin:80
+}

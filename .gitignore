@@ -1,0 +1,4 @@
+# env: don't commit the working .env, commit the .env.example template
+.env
+
+.DS_Store

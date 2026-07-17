@@ -1,0 +1,77 @@
+# dev-vault-infra
+
+Production deployment for the **dev-vault** stack: three independently developed
+apps served on their own subdomains behind a single reverse proxy.
+
+```
+Browser ──HTTPS──▶ Caddy (443, auto-TLS)
+                     api.YOUR_DOMAIN    → backend  (NestJS, :3030)
+                     app.YOUR_DOMAIN    → client   (static via nginx, :80)
+                     admin.YOUR_DOMAIN  → admin     (static via nginx, :80)
+
+backend ──private──▶ postgres (:5432) · redis (:6379)   # not exposed to the internet
+```
+
+Only Caddy publishes ports (80/443). Postgres and Redis have no public ports and
+are reachable only over the private Docker network.
+
+## Repositories
+
+Each app lives in its own repo and is developed and run independently. This repo
+only orchestrates them for production.
+
+| Repo                                                             | Role                    | Dev port |
+| ---------------------------------------------------------------- | ----------------------- | -------- |
+| [dev-vault-server](https://github.com/GrafSoul/dev-vault-server) | Backend API (NestJS)    | 3030     |
+| [dev-vault-client](https://github.com/GrafSoul/dev-vault-client) | Client SPA (React/Vite) | 3000     |
+| [dev-vault-admin](https://github.com/GrafSoul/dev-vault-admin)   | Admin SPA (React/Vite)  | 3001     |
+
+## Local development (no orchestration)
+
+Each app runs standalone against the others on `localhost` — no Docker required:
+
+```bash
+# terminal 1
+cd dev-vault-server && npm run start:dev   # http://localhost:3030
+# terminal 2
+cd dev-vault-client && npm run dev          # http://localhost:3000
+# terminal 3
+cd dev-vault-admin  && npm run dev          # http://localhost:3001
+```
+
+The frontends read `VITE_API_URL=http://localhost:3030` from their local `.env`.
+
+## Production deploy (single host, e.g. Hetzner)
+
+Prerequisites: Docker + Docker Compose on the host, a real domain, and DNS
+A-records `api` / `app` / `admin` pointing to the server IP. Ports 80 and 443 open.
+
+```bash
+# clone the four repos side by side
+git clone https://github.com/GrafSoul/dev-vault-server.git
+git clone https://github.com/GrafSoul/dev-vault-client.git
+git clone https://github.com/GrafSoul/dev-vault-admin.git
+git clone https://github.com/GrafSoul/dev-vault-infra.git
+
+cd dev-vault-infra
+cp .env.example .env      # set DOMAIN and POSTGRES_PASSWORD
+
+docker compose -f compose.prod.yml up -d --build
+```
+
+Caddy fetches TLS certificates from Let's Encrypt automatically once the
+subdomains resolve to the host.
+
+### Where config lives
+
+- **API URL** of each frontend is baked into its bundle at build time via the
+  `VITE_API_URL` build-arg (set in `compose.prod.yml`). Change the domain in one
+  place — `.env` `DOMAIN` — and rebuild.
+- **CORS allowlist** of the backend is passed as `CORS_ORIGIN` (derived from
+  `DOMAIN`) so it only trusts the real frontend origins.
+
+## Next maturity steps
+
+- Push images to a registry (GHCR) and pull instead of building on the host.
+- Add CI to build and publish images per repo on merge to `main`.
+- Move Postgres to a managed database or add automated backups.
