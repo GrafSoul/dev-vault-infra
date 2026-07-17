@@ -1,7 +1,9 @@
 # Production stack for dev-vault, deployed on a single host (e.g. Hetzner).
 # Expects the three app repos cloned side by side next to this one:
 #   dev-vault-server/  dev-vault-client/  dev-vault-admin/  dev-vault-infra/
-# Only Caddy is exposed to the internet (80/443); everything else stays private.
+#
+# Only nginx is exposed to the internet (80/443); everything else stays private.
+# First-time TLS setup: run ./init-letsencrypt.sh once, then:
 #   docker compose -f compose.prod.yml up -d --build
 
 services:
@@ -64,25 +66,40 @@ services:
       - redisdata:/data
     restart: unless-stopped
 
-  caddy:
-    image: caddy:2-alpine
+  nginx:
+    image: nginx:alpine
     environment:
       DOMAIN: ${DOMAIN}
+      NGINX_ENVSUBST_FILTER: DOMAIN   # only substitute ${DOMAIN}, leave $host etc.
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data       # persisted TLS certificates
-      - caddy_config:/config
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
+      - certbot_conf:/etc/letsencrypt:ro       # certificates (written by certbot)
+      - certbot_www:/var/www/certbot:ro        # ACME challenge webroot
     depends_on:
       - backend
       - client
       - admin
+    # Reload every 6h so renewed certificates are picked up without a restart.
+    command: >
+      /bin/sh -c "while :; do sleep 6h & wait $${!}; nginx -s reload; done & exec nginx -g 'daemon off;'"
+    restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    # Attempt renewal twice a day; certbot only acts when a cert is near expiry.
+    entrypoint: >
+      /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 12h & wait $${!}; done"
     restart: unless-stopped
 
 volumes:
   pgdata:
   redisdata:
-  caddy_data:
-  caddy_config:
+  certbot_conf:
+  certbot_www:

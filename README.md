@@ -1,7 +1,8 @@
 # dev-vault-infra
 
 Production orchestration for **dev-vault**: three independently developed apps
-served on their own subdomains behind a single Caddy reverse proxy.
+served on their own subdomains behind an Nginx reverse proxy with TLS from
+Let's Encrypt (certbot).
 
 ## The dev-vault project
 
@@ -12,12 +13,12 @@ served on their own subdomains behind a single Caddy reverse proxy.
 | [dev-vault-server](https://github.com/GrafSoul/dev-vault-server) | Backend API (NestJS)                       | `http://localhost:3030` |
 | [dev-vault-client](https://github.com/GrafSoul/dev-vault-client) | Client SPA (React + Vite)                  | `http://localhost:3000` |
 | [dev-vault-admin](https://github.com/GrafSoul/dev-vault-admin)   | Admin SPA (React + Vite)                   | `http://localhost:3001` |
-| [dev-vault-infra](https://github.com/GrafSoul/dev-vault-infra)   | Production orchestration (Compose + Caddy) | —                       |
+| [dev-vault-infra](https://github.com/GrafSoul/dev-vault-infra)   | Production orchestration (Nginx + certbot) | —                       |
 
 ## Architecture
 
 ```text
-Browser ──HTTPS──▶ Caddy (443, auto-TLS)
+Browser ──HTTPS──▶ Nginx (80/443, TLS via certbot)
                      api.YOUR_DOMAIN    → backend  (NestJS, :3030)
                      app.YOUR_DOMAIN    → client   (static via nginx, :80)
                      admin.YOUR_DOMAIN  → admin    (static via nginx, :80)
@@ -25,8 +26,26 @@ Browser ──HTTPS──▶ Caddy (443, auto-TLS)
 backend ──private──▶ postgres (:5432) · redis (:6379)   # not exposed to the internet
 ```
 
-Only Caddy publishes ports (80/443). Postgres and Redis have no public ports and
-are reachable only over the private Docker network.
+Only Nginx publishes ports (80/443). Postgres and Redis have no public ports and
+are reachable only over the private Docker network. One TLS certificate covers all
+three subdomains; certbot renews it automatically.
+
+## Layout
+
+```text
+dev-vault-infra/
+├── compose.dev.yml            # local: all apps + Postgres + Redis (dev stages)
+├── compose.prod.yml           # server: built images + Nginx + certbot
+├── init-letsencrypt.sh        # one-time TLS bootstrap (issue the first cert)
+├── nginx/
+│   ├── templates/
+│   │   └── default.conf.template   # reverse proxy (${DOMAIN} filled at startup)
+│   └── snippets/
+│       ├── ssl-params.conf         # TLS hardening + security headers (shared)
+│       └── proxy.conf              # common proxy headers (shared)
+├── .env.example
+└── README.md
+```
 
 ## Prerequisites
 
@@ -56,9 +75,7 @@ cd dev-vault-infra
 docker compose -f compose.dev.yml up
 ```
 
-`compose.dev.yml` just includes each app's own `docker-compose.yml` (dev stage,
-hot-reload, direct ports). The frontends read `VITE_API_URL=http://localhost:3030`
-from their local `.env`.
+The frontends read `VITE_API_URL=http://localhost:3030` from their local `.env`.
 
 > Dev and prod are deliberately separate files: `compose.dev.yml` for local work,
 > `compose.prod.yml` for the server. Never run them together.
@@ -73,22 +90,38 @@ git clone https://github.com/GrafSoul/dev-vault-admin.git
 git clone https://github.com/GrafSoul/dev-vault-infra.git
 
 cd dev-vault-infra
-cp .env.example .env      # set DOMAIN and POSTGRES_PASSWORD
+cp .env.example .env      # set DOMAIN, CERTBOT_EMAIL, POSTGRES_PASSWORD
 
+# 1) issue the first TLS certificate (run once).
+#    Tip: STAGING=1 ./init-letsencrypt.sh first, to avoid rate limits while testing.
+chmod +x init-letsencrypt.sh
+./init-letsencrypt.sh
+
+# 2) bring up the full stack
 docker compose -f compose.prod.yml up -d --build
 ```
 
-Caddy fetches TLS certificates from Let's Encrypt automatically once the
-subdomains resolve to the host.
+### How TLS works here
+
+- **First issuance** — nginx can't start without a certificate, and a certificate
+  can't be issued without nginx answering the ACME challenge.
+  `init-letsencrypt.sh` breaks the cycle: it drops a dummy self-signed cert, starts
+  nginx, then swaps in a real Let's Encrypt cert via the http-01 webroot challenge.
+- **Challenge path** — nginx serves `/.well-known/acme-challenge/` from a shared
+  volume that certbot writes into.
+- **Renewal** — the `certbot` service runs `certbot renew` twice a day; the `nginx`
+  service reloads every 6h so a renewed certificate is picked up with no downtime.
+  (Containers can't signal each other directly, hence the two loops.)
 
 ## Environment variables
 
 Defined in `.env` (see `.env.example` for the template):
 
-| Variable            | Description                                                | Example       |
-| ------------------- | ---------------------------------------------------------- | ------------- |
-| `DOMAIN`            | Base domain; subdomains `api`/`app`/`admin` derive from it | `YOUR_DOMAIN` |
-| `POSTGRES_PASSWORD` | Password for the private PostgreSQL instance               | —             |
+| Variable            | Description                                                | Example           |
+| ------------------- | ---------------------------------------------------------- | ----------------- |
+| `DOMAIN`            | Base domain; subdomains `api`/`app`/`admin` derive from it | `YOUR_DOMAIN`     |
+| `CERTBOT_EMAIL`     | Email for Let's Encrypt registration and expiry notices    | `you@example.com` |
+| `POSTGRES_PASSWORD` | Password for the private PostgreSQL instance               | —                 |
 
 ### Where config lives
 
@@ -97,6 +130,8 @@ Defined in `.env` (see `.env.example` for the template):
   place — `.env` `DOMAIN` — and rebuild.
 - **CORS allowlist** of the backend is passed as `CORS_ORIGIN` (derived from
   `DOMAIN`) so it only trusts the real frontend origins.
+- **Reverse proxy** config is templated: `${DOMAIN}` is substituted at container
+  startup; nginx's own `$variables` are preserved via `NGINX_ENVSUBST_FILTER`.
 
 ## Next maturity steps
 
