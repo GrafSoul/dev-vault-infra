@@ -70,7 +70,6 @@ services:
     image: nginx:alpine
     environment:
       DOMAIN: ${DOMAIN}
-      NGINX_ENVSUBST_FILTER: DOMAIN   # only substitute ${DOMAIN}, leave $host etc.
     ports:
       - "80:80"
       - "443:443"
@@ -83,9 +82,12 @@ services:
       - backend
       - client
       - admin
-    # Reload every 6h so renewed certificates are picked up without a restart.
+    # Render the config (substitute only ${DOMAIN}, keep nginx's own $vars — we do
+    # envsubst by hand because overriding the command skips the image's auto-render),
+    # then start nginx and reload every 6h so renewed certificates are picked up.
     command: >
-      /bin/sh -c "while :; do sleep 6h & wait $${!}; nginx -s reload; done & exec nginx -g 'daemon off;'"
+      /bin/sh -c "envsubst '$${DOMAIN}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf;
+      while :; do sleep 6h & wait $${!}; nginx -s reload; done & exec nginx -g 'daemon off;'"
     restart: unless-stopped
 
   certbot:

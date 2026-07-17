@@ -1,8 +1,8 @@
 # Reverse proxy for the dev-vault stack.
 #
-# ${DOMAIN} is substituted from the container environment at startup by the nginx
-# image's envsubst step (NGINX_ENVSUBST_FILTER=DOMAIN keeps nginx's own
-# $variables — $host, $scheme, ... — untouched).
+# ${DOMAIN} is substituted at container startup by the nginx service command
+# (envsubst '${DOMAIN}' ...), which only touches ${DOMAIN} and leaves nginx's own
+# $variables — $host, $scheme, ... — intact.
 #
 # One TLS certificate (issued by certbot for api./app./admin.) covers all three
 # subdomains, so every server block points at the same certificate.
@@ -17,6 +17,7 @@ map $http_upgrade $connection_upgrade {
 # ---- HTTP (:80): ACME challenge + redirect to HTTPS ----
 server {
     listen 80;
+    listen [::]:80;
     server_name api.${DOMAIN} app.${DOMAIN} admin.${DOMAIN};
 
     location /.well-known/acme-challenge/ {
@@ -31,6 +32,7 @@ server {
 # ---- HTTPS: api.${DOMAIN} -> backend ----
 server {
     listen 443 ssl;
+    listen [::]:443 ssl;
     http2 on;
     server_name api.${DOMAIN};
 
@@ -47,6 +49,7 @@ server {
 # ---- HTTPS: app.${DOMAIN} -> client ----
 server {
     listen 443 ssl;
+    listen [::]:443 ssl;
     http2 on;
     server_name app.${DOMAIN};
 
@@ -63,6 +66,7 @@ server {
 # ---- HTTPS: admin.${DOMAIN} -> admin ----
 server {
     listen 443 ssl;
+    listen [::]:443 ssl;
     http2 on;
     server_name admin.${DOMAIN};
 
