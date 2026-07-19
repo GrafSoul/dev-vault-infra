@@ -1,6 +1,6 @@
-# Production stack for dev-vault, deployed on a single host (e.g. Hetzner).
+# Production stack for netroom, deployed on a single host (e.g. Hetzner).
 # Expects the three app repos cloned side by side next to this one:
-#   dev-vault-server/  dev-vault-client/  dev-vault-admin/  dev-vault-infra/
+#   netroom-server/  netroom-client/  netroom-admin/  netroom-infra/
 #
 # Only nginx is exposed to the internet (80/443); everything else stays private.
 # First-time TLS setup: run ./init-letsencrypt.sh once, then:
@@ -9,7 +9,7 @@
 services:
   backend:
     build:
-      context: ../dev-vault-server
+      context: ../netroom-server
       target: prod
     environment:
       NODE_ENV: production
@@ -17,7 +17,7 @@ services:
       # Browser-facing origins allowed to call the API.
       CORS_ORIGIN: https://app.${DOMAIN},https://admin.${DOMAIN}
       # Private, server-to-server connections over the compose network.
-      DATABASE_URL: postgres://devvault:${POSTGRES_PASSWORD}@postgres:5432/devvault
+      DATABASE_URL: postgres://netroom:${POSTGRES_PASSWORD}@postgres:5432/netroom
       REDIS_URL: redis://redis:6379
     depends_on:
       postgres:
@@ -28,7 +28,7 @@ services:
 
   client:
     build:
-      context: ../dev-vault-client
+      context: ../netroom-client
       target: prod
       args:
         # Baked into the static bundle at build time.
@@ -37,7 +37,7 @@ services:
 
   admin:
     build:
-      context: ../dev-vault-admin
+      context: ../netroom-admin
       target: prod
       args:
         VITE_API_URL: https://api.${DOMAIN}
@@ -46,14 +46,14 @@ services:
   postgres:
     image: postgres:18-alpine
     environment:
-      POSTGRES_USER: devvault
+      POSTGRES_USER: netroom
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: devvault
+      POSTGRES_DB: netroom
     # No published ports — reachable only inside the private network.
     volumes:
       - pgdata:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U devvault"]
+      test: ["CMD-SHELL", "pg_isready -U netroom"]
       interval: 5s
       timeout: 3s
       retries: 5

@@ -1,19 +1,19 @@
-# dev-vault-infra
+# netroom-infra
 
-Production orchestration for **dev-vault**: three independently developed apps
+Production orchestration for **netroom**: three independently developed apps
 served on their own subdomains behind an Nginx reverse proxy with TLS from
 Let's Encrypt (certbot).
 
-## The dev-vault project
+## The netroom project
 
-**dev-vault** is split into four repositories, developed and deployed independently:
+**netroom** is split into four repositories, developed and deployed independently:
 
 | Repository                                                       | Role                                       | Local dev               |
 | ---------------------------------------------------------------- | ------------------------------------------ | ----------------------- |
-| [dev-vault-server](https://github.com/GrafSoul/dev-vault-server) | Backend API (NestJS)                       | `http://localhost:3030` |
-| [dev-vault-client](https://github.com/GrafSoul/dev-vault-client) | Client SPA (React + Vite)                  | `http://localhost:3000` |
-| [dev-vault-admin](https://github.com/GrafSoul/dev-vault-admin)   | Admin SPA (React + Vite)                   | `http://localhost:3001` |
-| [dev-vault-infra](https://github.com/GrafSoul/dev-vault-infra)   | Production orchestration (Nginx + certbot) | —                       |
+| [netroom-server](https://github.com/GrafSoul/netroom-server) | Backend API (NestJS)                       | `http://localhost:3030` |
+| [netroom-client](https://github.com/GrafSoul/netroom-client) | Client SPA (React + Vite)                  | `http://localhost:3000` |
+| [netroom-admin](https://github.com/GrafSoul/netroom-admin)   | Admin SPA (React + Vite)                   | `http://localhost:3001` |
+| [netroom-infra](https://github.com/GrafSoul/netroom-infra)   | Production orchestration (Nginx + certbot) | —                       |
 
 ## Architecture
 
@@ -33,7 +33,7 @@ three subdomains; certbot renews it automatically.
 ## Layout
 
 ```text
-dev-vault-infra/
+netroom-infra/
 ├── compose.dev.yml            # local: all apps + Postgres + Redis (dev stages)
 ├── compose.prod.yml           # server: built images + Nginx + certbot
 ├── init-letsencrypt.sh        # one-time TLS bootstrap (issue the first cert)
@@ -61,17 +61,17 @@ Two ways to run the stack locally — pick one.
 
 ```bash
 # terminal 1
-cd dev-vault-server && npm run start:dev    # http://localhost:3030
+cd netroom-server && npm run start:dev    # http://localhost:3030
 # terminal 2
-cd dev-vault-client && npm run dev          # http://localhost:3000
+cd netroom-client && npm run dev          # http://localhost:3000
 # terminal 3
-cd dev-vault-admin  && npm run dev          # http://localhost:3001
+cd netroom-admin  && npm run dev          # http://localhost:3001
 ```
 
 **B. One command (Docker).** Bring up all three apps + Postgres + Redis together:
 
 ```bash
-cd dev-vault-infra
+cd netroom-infra
 docker compose -f compose.dev.yml up
 ```
 
@@ -84,12 +84,12 @@ The frontends read `VITE_API_URL=http://localhost:3030` from their local `.env`.
 
 ```bash
 # clone the four repos side by side
-git clone https://github.com/GrafSoul/dev-vault-server.git
-git clone https://github.com/GrafSoul/dev-vault-client.git
-git clone https://github.com/GrafSoul/dev-vault-admin.git
-git clone https://github.com/GrafSoul/dev-vault-infra.git
+git clone https://github.com/GrafSoul/netroom-server.git
+git clone https://github.com/GrafSoul/netroom-client.git
+git clone https://github.com/GrafSoul/netroom-admin.git
+git clone https://github.com/GrafSoul/netroom-infra.git
 
-cd dev-vault-infra
+cd netroom-infra
 cp .env.example .env      # set DOMAIN, CERTBOT_EMAIL, POSTGRES_PASSWORD
 
 # 1) issue the first TLS certificate (run once).

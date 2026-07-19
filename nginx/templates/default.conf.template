@@ -1,4 +1,4 @@
-# Reverse proxy for the dev-vault stack.
+# Reverse proxy for the netroom stack.
 #
 # ${DOMAIN} is substituted at container startup by the nginx service command
 # (envsubst '${DOMAIN}' ...), which only touches ${DOMAIN} and leaves nginx's own

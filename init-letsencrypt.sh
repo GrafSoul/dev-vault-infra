@@ -1,5 +1,5 @@
 #!/bin/sh
-# One-time TLS bootstrap for the dev-vault stack (Nginx + certbot / Let's Encrypt).
+# One-time TLS bootstrap for the netroom stack (Nginx + certbot / Let's Encrypt).
 #
 # Solves the chicken-and-egg problem: nginx won't start without a certificate,
 # but the certificate can't be issued without nginx answering the ACME challenge.
